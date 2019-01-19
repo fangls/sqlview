@@ -1,0 +1,47 @@
+<html>
+<head>
+    <style type="text/css">
+        *, :after, :before {
+            box-sizing: border-box;
+        }
+        table{border-right:1px solid grey;
+              border-bottom:1px solid grey,
+              border-collapse: separate;
+              border-spacing: 0px;
+              border-color: grey;
+              font-size: 12px;
+              color: #515a6e;
+        }
+        th td{
+            height: 36px;
+            box-sizing: border-box;
+            text-align: left;
+            text-overflow: ellipsis;
+            vertical-align: middle;
+            border-bottom: 1px solid grey;
+            word-wrap:break-word;word-break:break-all;
+        }
+        tr {
+            display: table-row;
+            vertical-align: inherit;
+            border-color: inherit;
+            height: 36px;
+            white-space: nowrap;
+            overflow: hidden;
+            background-color: #f8f8f9;
+        }
+        table td{
+            border-left:1px solid grey;
+            border-top:1px solid grey;
+            background-color: #fff;
+            padding: 0px 5px;}
+        table th{
+            border-left:1px solid grey;
+            border-top:1px solid grey
+        }
+    </style>
+</head>
+<body>
+    ${content}
+</body>
+</html>

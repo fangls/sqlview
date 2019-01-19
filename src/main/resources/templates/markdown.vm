@@ -1,0 +1,7 @@
+## 数据库表
+|序号|表名|描述|
+|--|--|--|
+#foreach( $table in $tables )
+|$foreach.count|$!table.tableName|$!table.tableComment|
+#end
+
