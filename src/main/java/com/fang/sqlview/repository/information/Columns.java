@@ -57,4 +57,15 @@ public class Columns {
         private String columnName;
     }
 
+    public String getIsNullable() {
+        return this.isNullable.equals("YES") ? "是" : "否";
+    }
+
+    public String getColumnType() {
+        return this.columnKey.equals("PRI") ? "是" : "";
+    }
+
+    public String getColumnComment() {
+        return columnComment!=null? columnComment.replaceAll("\n","<br>") : "";
+    }
 }

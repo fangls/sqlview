@@ -6,6 +6,7 @@ import cn.hutool.extra.template.Engine;
 import cn.hutool.extra.template.Template;
 import cn.hutool.extra.template.TemplateConfig;
 import cn.hutool.extra.template.TemplateUtil;
+import com.fang.sqlview.common.Constant;
 import com.fang.sqlview.domain.MDContent;
 import com.fang.sqlview.service.DataBaseStructureService;
 import org.apache.poi.poifs.filesystem.DirectoryEntry;
@@ -37,7 +38,8 @@ public class UploadController {
 
     @Autowired
     private DataBaseStructureService dataBaseStructureService;
-
+    @Autowired
+    private Engine engine;
 
     @GetMapping("/index.html")
     public String index(Model mode){
@@ -66,9 +68,8 @@ public class UploadController {
     @PostMapping("/api/word")
     public void downWord(HttpServletResponse response, @RequestBody MDContent mdContent){
         try {
-            Engine engine = TemplateUtil.createEngine(new TemplateConfig("templates", TemplateConfig.ResourceMode.CLASSPATH));
 
-            Template template = engine.getTemplate("templates/wordhtml.vm");
+            Template template = engine.getTemplate(Constant.TEMPLATE_WORDHTML);
 
             Map<String, Object> map = new HashMap<>();
             map.put("content", mdContent.getMdContent()

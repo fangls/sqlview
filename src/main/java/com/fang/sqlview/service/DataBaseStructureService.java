@@ -2,11 +2,18 @@ package com.fang.sqlview.service;
 
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.extra.template.Engine;
+import cn.hutool.extra.template.engine.velocity.VelocityTemplate;
+import com.fang.sqlview.common.Constant;
 import com.fang.sqlview.repository.information.Columns;
 import com.fang.sqlview.repository.information.ColumnsRepository;
 import com.fang.sqlview.repository.information.Tables;
 import com.fang.sqlview.repository.information.TablesRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.formula.functions.T;
+import org.apache.velocity.Template;
+import org.apache.velocity.VelocityContext;
+import org.apache.velocity.app.VelocityEngine;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
@@ -17,7 +24,8 @@ import org.springframework.jdbc.datasource.init.ScriptStatementFailedException;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
-import java.util.List;
+import java.io.StringWriter;
+import java.util.*;
 
 /**
  * Description：
@@ -35,17 +43,16 @@ public class DataBaseStructureService {
     private TablesRepository tablesRepository;
     @Autowired
     private ColumnsRepository columnsRepository;
-
-    private static final String TABLE_HEAD = "|序号|表名|描述|";
-    private static final String TABLE_COL = "|--|--|--|";
-    private static final String COLUMN_HEAD = "|序号|字段|描述|类型|可空|主键|";
-    private static final String COLUMN_COL = "|--|--|--|--|--|--|";
+    @Autowired
+    private VelocityEngine velocityEngine;
 
     public String process(String dataBaseName, InputStream inputStream) {
         try {
             createDataBase(dataBaseName, inputStream);
 
-            return readDataStructure(dataBaseName);
+            Map<Tables, List<Columns>> dataBaseMap = readDataStructure(dataBaseName);
+
+            return renderMarkdown(dataBaseMap);
         } catch (Exception e) {
             e.printStackTrace();
             dropSchema(dataBaseName);
@@ -84,51 +91,37 @@ public class DataBaseStructureService {
         }
     }
 
-    public String readDataStructure(String dataBaseName) {
+    public Map<Tables, List<Columns>> readDataStructure(String dataBaseName) {
         //表汇总
-        StringBuilder tableString = new StringBuilder("## 数据库表\r");
-        StringBuilder columnString = new StringBuilder("");
-
-        tableString.append(TABLE_HEAD).append("\r");
-        tableString.append(TABLE_COL).append("\r");
+        Map<Tables, List<Columns>> dataBaseMap = new LinkedHashMap<>();
 
         List<Tables> tables = tablesRepository.findByTableSchema(dataBaseName);
-        for (int i = 0; i < tables.size(); i++) {
-            Tables table = tables.get(i);
-            tableString.append(formatTable(i, table)).append("\r");
-
-            //数据库表
-            columnString.append(StrUtil.format("## {}. {} {}",i+1, table.getTableName(), table.getTableComment())).append("\r");
-            columnString.append(COLUMN_HEAD).append("\r");
-            columnString.append(COLUMN_COL).append("\r");
+        tables.forEach(table->{
+            //列
             List<Columns> columns = columnsRepository.findByTableSchemaAndTableName(dataBaseName, table.getTableName());
-            for (int j = 0; j < columns.size(); j++) {
-                Columns column = columns.get(j);
-                columnString.append(formatColumn(j, column)).append("\r");
-            }
-        }
+            dataBaseMap.put(table, columns);
+        });
 
-        return tableString.append(columnString).toString();
-    }
-
-    private String formatTable(int i, Tables table){
-        return StrUtil.format("|{}|{}|{}|",
-                i+1,
-                table.getTableName(),
-                table.getTableComment());
-    }
-
-    private String formatColumn(int j, Columns column){
-        return StrUtil.format("|{}|{}|{}|{}|{}|{}|",
-                j+1,
-                column.getColumnName(),
-                column.getColumnComment(),
-                column.getColumnType(),
-                column.getIsNullable().equals("YES") ? "是" : "否",
-                column.getColumnKey().equals("PRI") ? "是" : "");
+        return dataBaseMap;
     }
 
     private void dropSchema(String dataBaseName) {
         jdbcTemplate.execute("DROP SCHEMA " + dataBaseName + ";");
+    }
+
+    /**
+     * 使用velocity生成markdown格式内容
+     * @param dataBaseMap
+     * @return
+     */
+    public String renderMarkdown(Map<Tables, List<Columns>> dataBaseMap){
+        Template template = velocityEngine.getTemplate(Constant.TEMPLATE_MARKDOWN,"UTF-8");
+
+        Map<String, Object> map = new HashMap<>();
+        map.put("dataBaseMap", dataBaseMap);
+
+        StringWriter writer = new StringWriter();
+        template.merge(new VelocityContext(map), writer);
+        return writer.toString();
     }
 }

@@ -1,7 +1,18 @@
-## 数据库表
+#[[## 数据库表]]#
 |序号|表名|描述|
 |--|--|--|
-#foreach( $table in $tables )
-|$foreach.count|$!table.tableName|$!table.tableComment|
+#foreach($table in $dataBaseMap.keySet())
+|$foreach.count|$table.tableName|$!table.tableComment|
 #end
+
+#foreach($table in $dataBaseMap.keySet())
+#[[##]]# $foreach.count.$table.tableName $!table.tableComment
+|序号|字段|描述|类型|可空|主键|
+|--|--|--|--|--|--|
+#foreach($column in $dataBaseMap.get($table))
+|$foreach.count|$column.columnName|$!column.columnComment|$!column.columnType()|$!column.isNullable|$!column.columnType|
+#end
+#end
+
+
 
