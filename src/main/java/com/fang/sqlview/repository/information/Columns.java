@@ -61,8 +61,12 @@ public class Columns {
         return this.isNullable.equals("YES") ? "是" : "否";
     }
 
-    public String getColumnType() {
+    public String getColumnKey() {
         return this.columnKey.equals("PRI") ? "是" : "";
+    }
+
+    public String getColumnType() {
+        return this.columnType = this.columnType.replace("unsigned","");
     }
 
     public String getColumnComment() {

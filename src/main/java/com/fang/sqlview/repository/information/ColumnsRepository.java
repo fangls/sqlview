@@ -12,6 +12,6 @@ import java.util.List;
  */
 public interface ColumnsRepository extends CrudRepository<Columns, String> {
 
-    List<Columns> findByTableSchemaAndTableName(String tableSchema, String tableName);
+    List<Columns> findByTableSchemaAndTableNameOrderByOrdinalPosition(String tableSchema, String tableName);
 
 }

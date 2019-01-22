@@ -1,16 +1,13 @@
 package com.fang.sqlview.service;
 
 import cn.hutool.core.io.IoUtil;
-import cn.hutool.core.util.StrUtil;
-import cn.hutool.extra.template.Engine;
-import cn.hutool.extra.template.engine.velocity.VelocityTemplate;
 import com.fang.sqlview.common.Constant;
 import com.fang.sqlview.repository.information.Columns;
 import com.fang.sqlview.repository.information.ColumnsRepository;
 import com.fang.sqlview.repository.information.Tables;
 import com.fang.sqlview.repository.information.TablesRepository;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.poi.ss.formula.functions.T;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
@@ -23,9 +20,14 @@ import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.jdbc.datasource.init.ScriptStatementFailedException;
 import org.springframework.stereotype.Service;
 
+import javax.persistence.Entity;
+import javax.persistence.Table;
 import java.io.InputStream;
 import java.io.StringWriter;
-import java.util.*;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Description：
@@ -46,6 +48,15 @@ public class DataBaseStructureService {
     @Autowired
     private VelocityEngine velocityEngine;
 
+    /**
+     * 上传处理流程
+     * 1、执行脚本到数据库
+     * 2、读取数据机构
+     * 3、生成md格式
+     * @param dataBaseName
+     * @param inputStream
+     * @return
+     */
     public String process(String dataBaseName, InputStream inputStream) {
         try {
             createDataBase(dataBaseName, inputStream);
@@ -98,7 +109,7 @@ public class DataBaseStructureService {
         List<Tables> tables = tablesRepository.findByTableSchema(dataBaseName);
         tables.forEach(table->{
             //列
-            List<Columns> columns = columnsRepository.findByTableSchemaAndTableName(dataBaseName, table.getTableName());
+            List<Columns> columns = columnsRepository.findByTableSchemaAndTableNameOrderByOrdinalPosition(dataBaseName, table.getTableName());
             dataBaseMap.put(table, columns);
         });
 
@@ -119,6 +130,22 @@ public class DataBaseStructureService {
 
         Map<String, Object> map = new HashMap<>();
         map.put("dataBaseMap", dataBaseMap);
+
+        StringWriter writer = new StringWriter();
+        template.merge(new VelocityContext(map), writer);
+        return writer.toString();
+    }
+
+    public String codePreview(String codeStyle){
+        Template template = velocityEngine.getTemplate(Constant.TEMPLATE_CODEPREVIEW,"UTF-8");
+        Map<String, Object> map = new HashMap<>();
+        if (codeStyle.contains("lombok")){
+            map.put("lombok", true);
+        }
+
+        if (codeStyle.contains("jpa")){
+            map.put("jpa", true);
+        }
 
         StringWriter writer = new StringWriter();
         template.merge(new VelocityContext(map), writer);

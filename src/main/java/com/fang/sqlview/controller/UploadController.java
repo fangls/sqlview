@@ -24,6 +24,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -55,7 +56,6 @@ public class UploadController {
         result.put("oid", dataBaseName);
 
         try {
-
             String md = dataBaseStructureService.process(dataBaseName, file.getInputStream());
             result.put("md", md);
         } catch (IOException e) {
@@ -97,7 +97,11 @@ public class UploadController {
         }catch (Exception e){
             e.printStackTrace();
         }
-
     }
 
+    @GetMapping("/api/code_preview")
+    @ResponseBody
+    public String codePreview(String codeStyle){
+        return dataBaseStructureService.codePreview(codeStyle);
+    }
 }

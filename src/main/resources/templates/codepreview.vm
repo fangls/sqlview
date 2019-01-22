@@ -1,0 +1,39 @@
+#if($lombok)
+@Data
+#end
+#if($jpa)
+@Entity
+@Table(name = "t_user")
+#end
+public class User{
+
+    /**
+     * 用户ID
+     */
+    @Id
+    @GeneratedValue
+    private Long userId;
+
+    /**
+     * 用户名称
+     */
+    private String userName;
+
+#if(!$lombok)
+    public Long getId() {
+        return Id;
+    }
+
+    public void setId(Long id) {
+        Id = id;
+    }
+
+    public String getUserName() {
+        return userName;
+    }
+
+    public void setUserName(String userName) {
+        this.userName = userName;
+    }
+#end
+}
