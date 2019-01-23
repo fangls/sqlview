@@ -8,6 +8,7 @@ import cn.hutool.extra.template.TemplateConfig;
 import cn.hutool.extra.template.TemplateUtil;
 import com.fang.sqlview.common.Constant;
 import com.fang.sqlview.domain.MDContent;
+import com.fang.sqlview.domain.UploadJsonResult;
 import com.fang.sqlview.service.DataBaseStructureService;
 import org.apache.poi.poifs.filesystem.DirectoryEntry;
 import org.apache.poi.poifs.filesystem.POIFSFileSystem;
@@ -49,39 +50,34 @@ public class UploadController {
 
     @PostMapping("/api/upload")
     @ResponseBody
-    public Map<String, String> upload(MultipartFile file){
+    public UploadJsonResult upload(MultipartFile file){
         String dataBaseName = RandomUtil.randomString(8);
 
-        Map<String, String> result = new HashMap<>();
-        result.put("oid", dataBaseName);
+        Map<String, String> map = new HashMap<>();
+        map.put("oid", dataBaseName);
 
         try {
-            String md = dataBaseStructureService.process(dataBaseName, file.getInputStream());
-            result.put("md", md);
+            UploadJsonResult result = dataBaseStructureService.process(dataBaseName, file.getInputStream());
+            result.setId(dataBaseName);
+            return result;
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        return result;
+        return null;
     }
 
     @PostMapping("/api/word")
-    public void downWord(HttpServletResponse response, @RequestBody MDContent mdContent){
+    public void downWord(HttpServletResponse response, String id){
         try {
 
-            Template template = engine.getTemplate(Constant.TEMPLATE_WORDHTML);
-
-            Map<String, Object> map = new HashMap<>();
-            map.put("content", mdContent.getMdContent()
-                    .replaceAll("<table>","<table border='1' cellspacing='0' cellpadding='0'>"));
-
-            String content = template.render(map);
+            String content = dataBaseStructureService.createWord(id);
 
             ByteArrayInputStream inputStream = IoUtil.toStream(content.getBytes());
 
-            POIFSFileSystem poifs = new POIFSFileSystem();
-            DirectoryEntry directory = poifs.getRoot();
-            directory.createDocument("WordDocument", inputStream);
+//            POIFSFileSystem poifs = new POIFSFileSystem();
+//            DirectoryEntry directory = poifs.getRoot();
+//            directory.createDocument("WordDocument", inputStream);
 
             OutputStream outputStream = response.getOutputStream();
             response.reset();
@@ -90,8 +86,9 @@ public class UploadController {
             response.setHeader("Access-Control-Allow-Origin", "*");
             response.setContentType("application/x-download");
 
-            poifs.writeFilesystem(outputStream);
+            //poifs.writeFilesystem(outputStream);
 
+            outputStream.write(content.getBytes());
             inputStream.close();
             outputStream.close();
         }catch (Exception e){

@@ -1,7 +1,9 @@
 package com.fang.sqlview.service;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.io.IoUtil;
 import com.fang.sqlview.common.Constant;
+import com.fang.sqlview.domain.UploadJsonResult;
 import com.fang.sqlview.repository.information.Columns;
 import com.fang.sqlview.repository.information.ColumnsRepository;
 import com.fang.sqlview.repository.information.Tables;
@@ -57,21 +59,22 @@ public class DataBaseStructureService {
      * @param inputStream
      * @return
      */
-    public String process(String dataBaseName, InputStream inputStream) {
+    public UploadJsonResult process(String dataBaseName, InputStream inputStream) {
         try {
             createDataBase(dataBaseName, inputStream);
 
             Map<Tables, List<Columns>> dataBaseMap = readDataStructure(dataBaseName);
 
-            return renderMarkdown(dataBaseMap);
+            return convert(dataBaseMap);
+            //return renderMarkdown(dataBaseMap);
         } catch (Exception e) {
             e.printStackTrace();
             dropSchema(dataBaseName);
         } finally {
-            dropSchema(dataBaseName);
+            //dropSchema(dataBaseName);
         }
 
-        return "";
+        return null;
     }
 
     /**
@@ -120,6 +123,12 @@ public class DataBaseStructureService {
         jdbcTemplate.execute("DROP SCHEMA " + dataBaseName + ";");
     }
 
+    public String createWord(String dataBase){
+        Map<Tables, List<Columns>> dataBaseMap = readDataStructure(dataBase);
+
+        return renderWordTemplate(dataBaseMap);
+    }
+
     /**
      * 使用velocity生成markdown格式内容
      * @param dataBaseMap
@@ -127,6 +136,17 @@ public class DataBaseStructureService {
      */
     public String renderMarkdown(Map<Tables, List<Columns>> dataBaseMap){
         Template template = velocityEngine.getTemplate(Constant.TEMPLATE_MARKDOWN,"UTF-8");
+
+        Map<String, Object> map = new HashMap<>();
+        map.put("dataBaseMap", dataBaseMap);
+
+        StringWriter writer = new StringWriter();
+        template.merge(new VelocityContext(map), writer);
+        return writer.toString();
+    }
+
+    public String renderWordTemplate(Map<Tables, List<Columns>> dataBaseMap){
+        Template template = velocityEngine.getTemplate(Constant.TEMPLATE_WORD,"UTF-8");
 
         Map<String, Object> map = new HashMap<>();
         map.put("dataBaseMap", dataBaseMap);
@@ -150,5 +170,26 @@ public class DataBaseStructureService {
         StringWriter writer = new StringWriter();
         template.merge(new VelocityContext(map), writer);
         return writer.toString();
+    }
+
+    private UploadJsonResult convert(Map<Tables, List<Columns>> map){
+        UploadJsonResult result = new UploadJsonResult();
+        map.entrySet().forEach(entry->{
+            Tables tables = entry.getKey();
+
+            UploadJsonResult.Table table = new UploadJsonResult.Table();
+            BeanUtil.copyProperties(tables, table);
+
+            List<Columns> columns = entry.getValue();
+            columns.forEach(c->{
+                UploadJsonResult.Column column = new UploadJsonResult.Column();
+                BeanUtil.copyProperties(c, column);
+                table.getColumnList().add(column);
+            });
+
+            result.getTableList().add(table);
+        });
+
+        return result;
     }
 }

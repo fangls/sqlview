@@ -70,6 +70,6 @@ public class Columns {
     }
 
     public String getColumnComment() {
-        return columnComment!=null? columnComment.replaceAll("\n","<br>") : "";
+        return columnComment!=null? columnComment.replaceAll("\n","<br/>") : "";
     }
 }
