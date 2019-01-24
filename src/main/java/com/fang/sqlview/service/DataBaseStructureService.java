@@ -1,35 +1,31 @@
 package com.fang.sqlview.service;
 
-import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
+import cn.hutool.core.util.RandomUtil;
+import cn.hutool.core.util.ZipUtil;
+import com.alibaba.druid.sql.SQLUtils;
+import com.alibaba.druid.sql.ast.SQLStatement;
+import com.alibaba.druid.sql.ast.statement.SQLAlterTableStatement;
+import com.alibaba.druid.sql.ast.statement.SQLColumnDefinition;
+import com.alibaba.druid.sql.ast.statement.SQLCreateTableStatement;
+import com.alibaba.druid.sql.ast.statement.SQLNotNullConstraint;
+import com.alibaba.druid.sql.dialect.mysql.ast.MySqlPrimaryKey;
 import com.fang.sqlview.common.Constant;
+import com.fang.sqlview.common.MyUtils;
+import com.fang.sqlview.domain.JavaEntityField;
 import com.fang.sqlview.domain.UploadJsonResult;
-import com.fang.sqlview.repository.information.Columns;
-import com.fang.sqlview.repository.information.ColumnsRepository;
-import com.fang.sqlview.repository.information.Tables;
-import com.fang.sqlview.repository.information.TablesRepository;
-import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.ByteArrayResource;
-import org.springframework.core.io.Resource;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.init.DatabasePopulatorUtils;
-import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
-import org.springframework.jdbc.datasource.init.ScriptStatementFailedException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import javax.persistence.Entity;
-import javax.persistence.Table;
-import java.io.InputStream;
-import java.io.StringWriter;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.*;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Description：
@@ -42,114 +38,137 @@ import java.util.Map;
 public class DataBaseStructureService {
 
     @Autowired
-    private JdbcTemplate jdbcTemplate;
-    @Autowired
-    private TablesRepository tablesRepository;
-    @Autowired
-    private ColumnsRepository columnsRepository;
-    @Autowired
     private VelocityEngine velocityEngine;
+    @Value("${sql.path}")
+    private String sqlPath;
 
-    /**
-     * 上传处理流程
-     * 1、执行脚本到数据库
-     * 2、读取数据机构
-     * 3、生成md格式
-     * @param dataBaseName
-     * @param inputStream
-     * @return
-     */
-    public UploadJsonResult process(String dataBaseName, InputStream inputStream) {
-        try {
-            createDataBase(dataBaseName, inputStream);
+    public UploadJsonResult process(String dataBaseName, InputStream inputStream){
+        String sqlStr = IoUtil.read(inputStream).toString();
+        FileUtil.writeUtf8String(sqlStr, sqlPath+dataBaseName+".sql");
 
-            Map<Tables, List<Columns>> dataBaseMap = readDataStructure(dataBaseName);
-
-            return convert(dataBaseMap);
-            //return renderMarkdown(dataBaseMap);
-        } catch (Exception e) {
-            e.printStackTrace();
-            dropSchema(dataBaseName);
-        } finally {
-            //dropSchema(dataBaseName);
-        }
-
-        return null;
+        Collection<SQLCreateTableStatement> createTableStatements = createSQLStatement(sqlStr);
+        return convert(createTableStatements);
     }
 
-    /**
-     * 创建随机名的数据库，并执行上传的sql
-     *
-     * @param dataBaseName 8位随机数据库名称
-     * @param inputStream  上传的文件
-     */
-    public void createDataBase(String dataBaseName, InputStream inputStream) {
-        String userSql = IoUtil.read(inputStream).toString();
+    private Collection<SQLCreateTableStatement> createSQLStatement(String sqlStr){
+        List<SQLStatement> result = SQLUtils.parseStatements(sqlStr, "mysql");
 
-        try {
-            StringBuilder sql = new StringBuilder();
+        Map<String, SQLCreateTableStatement> createTableStatementMap = new HashMap<>();
+        result.stream()
+                .filter(a -> a instanceof SQLCreateTableStatement)
+                .map(a -> (SQLCreateTableStatement) a)
+                .forEach(a -> createTableStatementMap.put(MyUtils.sqlFiledReplace(a.getName().getSimpleName()), a));
 
-            sql.append("CREATE SCHEMA " + dataBaseName + ";");
-            sql.append("USE " + dataBaseName + ";");
-            sql.append(userSql);
+        result.stream()
+                .filter(a -> a instanceof SQLAlterTableStatement)
+                .map(a -> (SQLAlterTableStatement) a)
+                .filter(a -> createTableStatementMap.get(MyUtils.sqlFiledReplace(a.getTableName())) != null)
+                .forEach(a -> createTableStatementMap.get(MyUtils.sqlFiledReplace(a.getTableName())).apply(a));
 
-            Resource scripts = new ByteArrayResource(sql.toString().getBytes());
-            ResourceDatabasePopulator populator = new ResourceDatabasePopulator(scripts);
-            populator.setSqlScriptEncoding("UTF-8");
-            populator.setIgnoreFailedDrops(true);
-
-            DatabasePopulatorUtils.execute(populator, jdbcTemplate.getDataSource());
-        } catch (ScriptStatementFailedException e) {
-            e.printStackTrace();
-
-        }
+        return createTableStatementMap.values();
     }
 
-    public Map<Tables, List<Columns>> readDataStructure(String dataBaseName) {
-        //表汇总
-        Map<Tables, List<Columns>> dataBaseMap = new LinkedHashMap<>();
+    private UploadJsonResult convert(Collection<SQLCreateTableStatement> createTableStatements){
+        UploadJsonResult result = new UploadJsonResult();
+        createTableStatements.stream().forEach(a->{
+            UploadJsonResult.Table table = new UploadJsonResult.Table();
+            table.setTableName(a.getTableSource().getName().getSimpleName());
+            table.setTableComment(a.getComment()!=null? a.getComment().toString() : "");
 
-        List<Tables> tables = tablesRepository.findByTableSchema(dataBaseName);
-        tables.forEach(table->{
-            //列
-            List<Columns> columns = columnsRepository.findByTableSchemaAndTableNameOrderByOrdinalPosition(dataBaseName, table.getTableName());
-            dataBaseMap.put(table, columns);
+            result.getTableList().add(table);
+
+            a.getTableElementList().forEach(c->{
+                UploadJsonResult.Column column = new UploadJsonResult.Column();
+
+                if (c instanceof SQLColumnDefinition){
+                    SQLColumnDefinition columnDefinition = (SQLColumnDefinition)c;
+                    column.setColumnName(MyUtils.sqlFiledReplace(columnDefinition.getName().getSimpleName()));
+                    column.setColumnComment(columnDefinition.getComment()!=null ? columnDefinition.getComment().toString() : "");
+                    column.setColumnType(columnDefinition.getDataType().toString());
+
+                    long count = columnDefinition.getConstraints().stream().filter(d->d instanceof SQLNotNullConstraint).count();
+                    if (count > 0){
+                        column.setIsNullable("否");
+                    }
+
+                    table.getColumnList().add(column);
+                }else if(c instanceof MySqlPrimaryKey){
+                    MySqlPrimaryKey primaryKey = (MySqlPrimaryKey)c;
+                    primaryKey.getColumns().forEach(p->{
+                        String key = MyUtils.sqlFiledReplace(p.getExpr().toString());
+                        Optional<UploadJsonResult.Column> keyColumn = table.getColumnList().stream()
+                                .filter(m->m.getColumnName().equals(key))
+                                .findFirst();
+
+                        if (keyColumn.isPresent()){
+                            keyColumn.get().setColumnKey("是");
+                        }
+                    });
+                }
+            });
         });
-
-        return dataBaseMap;
-    }
-
-    private void dropSchema(String dataBaseName) {
-        jdbcTemplate.execute("DROP SCHEMA " + dataBaseName + ";");
-    }
-
-    public String createWord(String dataBase){
-        Map<Tables, List<Columns>> dataBaseMap = readDataStructure(dataBase);
-
-        return renderWordTemplate(dataBaseMap);
+        return result;
     }
 
     /**
-     * 使用velocity生成markdown格式内容
-     * @param dataBaseMap
+     * word生成
+     * @param fileId
      * @return
      */
-    public String renderMarkdown(Map<Tables, List<Columns>> dataBaseMap){
-        Template template = velocityEngine.getTemplate(Constant.TEMPLATE_MARKDOWN,"UTF-8");
+    public String createWord(String fileId){
+        UploadJsonResult jsonResult = readFileToObject(fileId);
 
-        Map<String, Object> map = new HashMap<>();
-        map.put("dataBaseMap", dataBaseMap);
-
-        StringWriter writer = new StringWriter();
-        template.merge(new VelocityContext(map), writer);
-        return writer.toString();
+        return renderWordTemplate(jsonResult);
     }
 
-    public String renderWordTemplate(Map<Tables, List<Columns>> dataBaseMap){
+    public File createJavaCodeZip(String fileId, String codeStyle){
+        List<JavaEntityField> entityFields = createJavaCode(fileId);
+
+        return createJavaCode(entityFields,codeStyle);
+    }
+
+    public List<JavaEntityField> createJavaCode(String fileId){
+        UploadJsonResult jsonResult = readFileToObject(fileId);
+
+        return jsonResult.getTableList()
+                .stream()
+                .map(table -> {
+                    JavaEntityField entityField = new JavaEntityField();
+                    entityField.setTableComment(table.getTableComment());
+                    entityField.setTableName(table.getTableName());
+
+                    table.getColumnList().forEach(column -> {
+                        JavaEntityField.Field field = new JavaEntityField.Field();
+                        field.setComment(column.getColumnComment());
+                        field.setName(column.getColumnName());
+                        field.setType(column.getColumnType());
+                        field.setKey(column.getColumnKey()!=null ? true : false);
+
+                        entityField.getFieldList().add(field);
+                    });
+                    return entityField;
+                }).collect(Collectors.toList());
+    }
+
+    public File createJavaCode(List<JavaEntityField> entityFields,String codeStyle){
+        String srcPath = sqlPath + RandomUtil.randomString(8) + "/";
+        renderJavaCode(entityFields, srcPath, codeStyle);
+
+        return ZipUtil.zip(srcPath);
+    }
+
+    private UploadJsonResult readFileToObject(String fileId){
+        String sqlStr = FileUtil.readUtf8String(sqlPath + fileId + ".sql");
+
+        Collection<SQLCreateTableStatement> createTableStatements = createSQLStatement(sqlStr);
+        return convert(createTableStatements);
+    }
+
+    public String renderWordTemplate(UploadJsonResult jsonResult){
         Template template = velocityEngine.getTemplate(Constant.TEMPLATE_WORD,"UTF-8");
 
         Map<String, Object> map = new HashMap<>();
-        map.put("dataBaseMap", dataBaseMap);
+        map.put("jsonResult", jsonResult);
 
         StringWriter writer = new StringWriter();
         template.merge(new VelocityContext(map), writer);
@@ -158,6 +177,14 @@ public class DataBaseStructureService {
 
     public String codePreview(String codeStyle){
         Template template = velocityEngine.getTemplate(Constant.TEMPLATE_CODEPREVIEW,"UTF-8");
+        Map<String, Object> map = codeStyleMap(codeStyle);
+
+        StringWriter writer = new StringWriter();
+        template.merge(new VelocityContext(map), writer);
+        return writer.toString();
+    }
+
+    private Map<String,Object> codeStyleMap(String codeStyle){
         Map<String, Object> map = new HashMap<>();
         if (codeStyle.contains("lombok")){
             map.put("lombok", true);
@@ -166,30 +193,25 @@ public class DataBaseStructureService {
         if (codeStyle.contains("jpa")){
             map.put("jpa", true);
         }
-
-        StringWriter writer = new StringWriter();
-        template.merge(new VelocityContext(map), writer);
-        return writer.toString();
+        return map;
     }
 
-    private UploadJsonResult convert(Map<Tables, List<Columns>> map){
-        UploadJsonResult result = new UploadJsonResult();
-        map.entrySet().forEach(entry->{
-            Tables tables = entry.getKey();
+    public void renderJavaCode(List<JavaEntityField> entityFields, String path,String codeStyle){
+        Template template = velocityEngine.getTemplate(Constant.TEMPLATE_JAVACODE,"UTF-8");
 
-            UploadJsonResult.Table table = new UploadJsonResult.Table();
-            BeanUtil.copyProperties(tables, table);
+        Map<String, Object> map = codeStyleMap(codeStyle);
+        entityFields.forEach(field->{
+            map.put("data", field);
 
-            List<Columns> columns = entry.getValue();
-            columns.forEach(c->{
-                UploadJsonResult.Column column = new UploadJsonResult.Column();
-                BeanUtil.copyProperties(c, column);
-                table.getColumnList().add(column);
-            });
-
-            result.getTableList().add(table);
+            try {
+                FileUtil.mkdir(path);
+                try(FileWriter writer = new FileWriter(new File(path + field.getClassName() + ".java"))){
+                    template.merge(new VelocityContext(map), writer);
+                }
+            }catch (IOException e){
+                e.printStackTrace();
+            }
         });
 
-        return result;
     }
 }

@@ -10,8 +10,10 @@ public class User{
     /**
      * 用户ID
      */
+#if($jpa)
     @Id
     @GeneratedValue
+#end
     private Long userId;
 
     /**
