@@ -1,0 +1,50 @@
+#if($lombok)
+import lombok.Data;
+#end
+#if($jpa)
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.Id;
+import javax.persistence.Table;
+#end
+import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.util.Date;
+import java.math.BigInteger;
+import java.time.Year;
+
+#if($lombok)
+@Data
+#end
+#if($jpa)
+@Entity
+@Table(name = "$data.tableName")
+#end
+public class $data.className{
+
+#foreach($field in $data.fieldList)
+#if($field.comment)
+    /**
+     * $field.comment
+     */
+#end
+#if($field.key && $jpa)
+    @Id
+    @GeneratedValue
+#end
+    private $field.type $field.name;
+
+#end
+#if(!$lombok)
+#foreach($field in $data.fieldList)
+    public $field.type get$field.methodName () {
+        return $field.name;
+    }
+
+    public void set$field.methodName ($field.type $field.name) {
+        this.$field.name = $field.name;
+    }
+
+#end
+#end
+}
