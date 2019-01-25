@@ -13,14 +13,13 @@ import java.util.List;
  * @date 2019/1/23
  */
 @Data
-public class UploadJsonResult {
+public class UploadJsonResult extends BaseResult {
 
     private String id;
     private List<Table> tableList = new ArrayList<>();
 
     @Data
     public static class Table{
-        private String num;
 
         private String tableName;
 

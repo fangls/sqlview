@@ -3,6 +3,7 @@ package com.fang.sqlview.controller;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.extra.template.Engine;
+import com.fang.sqlview.domain.TransferForm;
 import com.fang.sqlview.domain.UploadJsonResult;
 import com.fang.sqlview.service.DataBaseStructureService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,13 +11,16 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
+import javax.validation.Valid;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -37,29 +41,17 @@ public class UploadController {
         return "index";
     }
 
-    @PostMapping("/api/upload")
+    @PostMapping("/api/transfer")
     @ResponseBody
-    public UploadJsonResult upload(MultipartFile file){
-        String dataBaseName = RandomUtil.randomString(8);
-
-        Map<String, String> map = new HashMap<>();
-        map.put("oid", dataBaseName);
-
-        try {
-            UploadJsonResult result = dataBaseStructureService.process(dataBaseName, file.getInputStream());
-            result.setId(dataBaseName);
-            return result;
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        return null;
+    public UploadJsonResult transfer(@RequestBody @Valid TransferForm form){
+        UploadJsonResult result = dataBaseStructureService.transfer(form.getSql());
+        return result;
     }
 
     @PostMapping("/api/word")
-    public void downWord(HttpServletResponse response, String id){
+    public void downWord(HttpServletResponse response, @RequestBody @Valid TransferForm form){
         try {
-            String content = dataBaseStructureService.createWord(id);
+            String content = dataBaseStructureService.createWord(form.getSql());
 
             OutputStream outputStream = response.getOutputStream();
             response.reset();
@@ -78,13 +70,13 @@ public class UploadController {
     @GetMapping("/api/code_preview")
     @ResponseBody
     public String codePreview(String codeStyle){
-        return dataBaseStructureService.codePreview(codeStyle);
+        return dataBaseStructureService.codePreview(Arrays.asList(codeStyle.split(",")));
     }
 
     @PostMapping("/api/code")
-    public void downCode(HttpServletResponse response, String id, String codeStyle){
+    public void downCode(HttpServletResponse response, @RequestBody @Valid TransferForm form){
         try {
-            File zipFile = dataBaseStructureService.createJavaCodeZip(id, codeStyle);
+            File zipFile = dataBaseStructureService.createJavaCodeZip(form);
 
             OutputStream outputStream = response.getOutputStream();
             response.reset();

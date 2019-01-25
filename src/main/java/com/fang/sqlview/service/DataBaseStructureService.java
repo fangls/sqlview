@@ -14,6 +14,7 @@ import com.alibaba.druid.sql.dialect.mysql.ast.MySqlPrimaryKey;
 import com.fang.sqlview.common.Constant;
 import com.fang.sqlview.common.MyUtils;
 import com.fang.sqlview.domain.JavaEntityField;
+import com.fang.sqlview.domain.TransferForm;
 import com.fang.sqlview.domain.UploadJsonResult;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.velocity.Template;
@@ -42,12 +43,9 @@ public class DataBaseStructureService {
     @Value("${sql.path}")
     private String sqlPath;
 
-    public UploadJsonResult process(String dataBaseName, InputStream inputStream){
-        String sqlStr = IoUtil.read(inputStream).toString();
-        FileUtil.writeUtf8String(sqlStr, sqlPath+dataBaseName+".sql");
+    public UploadJsonResult transfer(String sql){
 
-        Collection<SQLCreateTableStatement> createTableStatements = createSQLStatement(sqlStr);
-        return convert(createTableStatements);
+        return readFileToObject(sql);
     }
 
     private Collection<SQLCreateTableStatement> createSQLStatement(String sqlStr){
@@ -112,23 +110,23 @@ public class DataBaseStructureService {
 
     /**
      * word生成
-     * @param fileId
+     * @param sql
      * @return
      */
-    public String createWord(String fileId){
-        UploadJsonResult jsonResult = readFileToObject(fileId);
+    public String createWord(String sql){
+        UploadJsonResult jsonResult = readFileToObject(sql);
 
         return renderWordTemplate(jsonResult);
     }
 
-    public File createJavaCodeZip(String fileId, String codeStyle){
-        List<JavaEntityField> entityFields = createJavaCode(fileId);
+    public File createJavaCodeZip(TransferForm form){
+        List<JavaEntityField> entityFields = createJavaCode(form.getSql());
 
-        return createJavaCode(entityFields,codeStyle);
+        return createJavaCode(entityFields, form.getCodeStyle());
     }
 
-    public List<JavaEntityField> createJavaCode(String fileId){
-        UploadJsonResult jsonResult = readFileToObject(fileId);
+    public List<JavaEntityField> createJavaCode(String sql){
+        UploadJsonResult jsonResult = readFileToObject(sql);
 
         return jsonResult.getTableList()
                 .stream()
@@ -150,17 +148,15 @@ public class DataBaseStructureService {
                 }).collect(Collectors.toList());
     }
 
-    public File createJavaCode(List<JavaEntityField> entityFields,String codeStyle){
+    public File createJavaCode(List<JavaEntityField> entityFields,List<String> codeStyle){
         String srcPath = sqlPath + RandomUtil.randomString(8) + "/";
         renderJavaCode(entityFields, srcPath, codeStyle);
 
         return ZipUtil.zip(srcPath);
     }
 
-    private UploadJsonResult readFileToObject(String fileId){
-        String sqlStr = FileUtil.readUtf8String(sqlPath + fileId + ".sql");
-
-        Collection<SQLCreateTableStatement> createTableStatements = createSQLStatement(sqlStr);
+    private UploadJsonResult readFileToObject(String sql){
+        Collection<SQLCreateTableStatement> createTableStatements = createSQLStatement(sql);
         return convert(createTableStatements);
     }
 
@@ -175,7 +171,7 @@ public class DataBaseStructureService {
         return writer.toString();
     }
 
-    public String codePreview(String codeStyle){
+    public String codePreview(List<String> codeStyle){
         Template template = velocityEngine.getTemplate(Constant.TEMPLATE_CODEPREVIEW,"UTF-8");
         Map<String, Object> map = codeStyleMap(codeStyle);
 
@@ -184,7 +180,7 @@ public class DataBaseStructureService {
         return writer.toString();
     }
 
-    private Map<String,Object> codeStyleMap(String codeStyle){
+    private Map<String,Object> codeStyleMap(List<String> codeStyle){
         Map<String, Object> map = new HashMap<>();
         if (codeStyle.contains("lombok")){
             map.put("lombok", true);
@@ -196,7 +192,7 @@ public class DataBaseStructureService {
         return map;
     }
 
-    public void renderJavaCode(List<JavaEntityField> entityFields, String path,String codeStyle){
+    public void renderJavaCode(List<JavaEntityField> entityFields, String path,List<String> codeStyle){
         Template template = velocityEngine.getTemplate(Constant.TEMPLATE_JAVACODE,"UTF-8");
 
         Map<String, Object> map = codeStyleMap(codeStyle);
