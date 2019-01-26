@@ -1,20 +1,19 @@
 package com.fang.sqlview.domain;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
 
 /**
- * Description：返回结果基类
+ * Description：
  *
  * @author fangliangsheng
- * @date 2019/1/25
+ * @date 2019/1/26
  */
 @Data
-@AllArgsConstructor
-@NoArgsConstructor
-public class BaseResult {
+public class BaseResponse<T> {
+
+    public BaseResponse(T data) {
+        this.data = data;
+    }
 
     /**
      * 处理结果
@@ -27,5 +26,7 @@ public class BaseResult {
      * success为false时有值
      */
     private String message;
+
+    private T data;
 
 }

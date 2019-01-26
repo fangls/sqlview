@@ -17,6 +17,9 @@ public class TransferForm {
     @NotEmpty(message = "sql不能为空")
     private String sql;
 
+    @NotEmpty(message = "数据类型不能为空")
+    private String dbType;
+
     private List<String> codeStyle;
 
 }

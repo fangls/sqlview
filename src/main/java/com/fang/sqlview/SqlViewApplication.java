@@ -9,10 +9,10 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @SpringBootApplication
-public class PdmViewApplication {
+public class SqlViewApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(PdmViewApplication.class, args);
+		SpringApplication.run(SqlViewApplication.class, args);
 	}
 
     @Bean
