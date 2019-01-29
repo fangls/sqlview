@@ -472,7 +472,7 @@
                         <w:pPr>
                             <w:numPr>
                                 <w:ilvl w:val="0"/>
-                                <w:numId w:val="$foreach.count"/>
+                                <w:numId w:val="1"/>
                             </w:numPr>
                             <w:ind w:left="425" w:leftChars="0" w:hanging="425" w:firstLineChars="0"/>
                             <w:rPr>

@@ -16,6 +16,7 @@ public enum  MysqlDateTypeToJavaObjectEnum {
     TEXT("TEXT","String"),
 
     INTEGER("INTEGER","Integer"),
+    INT("INT","Integer"),
     TINYINT("TINYINT","Boolean"),
     SMALLINT("SMALLINT","Integer"),
     MEDIUMINT("MEDIUMINT","Integer"),
@@ -26,11 +27,11 @@ public enum  MysqlDateTypeToJavaObjectEnum {
     DOUBLE("DOUBLE","Double"),
     DECIMAL("DECIMAL","BigDecimal"),
 
-    DATE("CHAR","Date"),
-    TIME("CHAR","Time"),
-    DATETIME("CHAR","Timestamp"),
-    TIMESTAMP("CHAR","Timestamp"),
-    YEAR("CHAR","YEAR"),
+    DATE("DATE","Date"),
+    TIME("TIME","Time"),
+    DATETIME("DATETIME","Date"),
+    TIMESTAMP("TIMESTAMP","Timestamp"),
+    YEAR("YEAR","YEAR"),
     ;
 
     private String mysqlType;
